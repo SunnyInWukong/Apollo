@@ -1,0 +1,89 @@
+---
+# Builds the Apollo Windows installer (NSIS) and portable zip.
+# Adapted from the ci-windows.yml upstream removed in da5a4e3e.
+name: Build Windows
+permissions:
+  contents: write  # tag builds attach installers to a release
+
+on:
+  push:
+    branches: [master]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-2022
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: ucrt64
+          update: true
+          install: >-
+            git
+            mingw-w64-ucrt-x86_64-boost
+            mingw-w64-ucrt-x86_64-cmake
+            mingw-w64-ucrt-x86_64-cppwinrt
+            mingw-w64-ucrt-x86_64-curl-winssl
+            mingw-w64-ucrt-x86_64-MinHook
+            mingw-w64-ucrt-x86_64-miniupnpc
+            mingw-w64-ucrt-x86_64-nlohmann-json
+            mingw-w64-ucrt-x86_64-nsis
+            mingw-w64-ucrt-x86_64-onevpl
+            mingw-w64-ucrt-x86_64-openssl
+            mingw-w64-ucrt-x86_64-opus
+            mingw-w64-ucrt-x86_64-toolchain
+
+      # MSYS2's nodejs crashes on init (gcc-16 bad_weak_ptr), see docs/building.md
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Node path
+        shell: pwsh
+        run: echo "NODEJS_PATH=$(Split-Path -Parent (Get-Command node).Source)" >> $env:GITHUB_ENV
+
+      - name: Build
+        env:
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+          COMMIT: ${{ github.sha }}
+        run: |
+          export PATH="$PATH:$(cygpath "$NODEJS_PATH")"
+          cmake -B build -G Ninja -S . \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DSUNSHINE_ASSETS_DIR=assets \
+            -DSUNSHINE_PUBLISHER_NAME='${{ github.repository_owner }}'
+          ninja -C build
+
+      - name: Package
+        run: |
+          mkdir -p artifacts
+          cd build
+          cpack -G NSIS
+          cpack -G ZIP
+          mv cpack_artifacts/*.exe ../artifacts/Apollo-Windows-AMD64-installer.exe
+          mv cpack_artifacts/*.zip ../artifacts/Apollo-Windows-AMD64-portable.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Apollo-Windows-AMD64
+          path: artifacts/
+          if-no-files-found: error
+
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
