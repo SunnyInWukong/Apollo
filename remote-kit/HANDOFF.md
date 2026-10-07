@@ -24,10 +24,11 @@ Each local clone needs `git remote add upstream <upstream url>` to pull upstream
   - CI verifies signer CN and package id before publishing.
 - moonlight-qt: CI green (run 37672144813), Windows x64 + arm64 as Actions artifacts only; no release step yet.
   Dependabot config removed (it burned Windows minutes).
-- Apollo: NOT green yet. Build on commit b24ead44 was running at handoff.
+- Apollo: CI green on b24ead44 (run 37679992153). Release `build-6` has the NSIS installer + portable zip;
+  https://github.com/SunnyInWukong/Apollo/releases/latest. Installer never run on a real PC yet.
   - Fixed: `src/video.cpp` AMF h264 `profile` option referenced `cfg.profile`, which Apollo's `config_t`
     lacks (upstream commit c71ea0a8 broke the Windows build). Now constant `"high"`.
-  - Fixed (pending verify): MSYS2 `makensis` has no plugin dir, so NSIS failed on
+  - Fixed: MSYS2 `makensis` has no plugin dir, so NSIS failed on
     `InstallOptions::initDialog`. Workflow now passes `CPACK_NSIS_EXECUTABLE` = runner's
     `C:/Program Files (x86)/NSIS/makensis.exe`.
   - Portable zip already builds (run 37677586463 artifact). Each master push publishes release `build-N`.
@@ -37,7 +38,7 @@ Each local clone needs `git remote add upstream <upstream url>` to pull upstream
 
 ## Next steps (in order)
 
-1. Check Apollo CI: `gh run list -R SunnyInWukong/Apollo -L 3`. If red: `gh run view <id> -R SunnyInWukong/Apollo --log-failed`, fix, push.
+1. Apollo CI is green; on later pushes check with `gh run list -R SunnyInWukong/Apollo -L 3` (`gh run view <id> --log-failed` if red).
 2. Install Apollo on this PC: `gh release download -R SunnyInWukong/Apollo -p '*installer.exe'` then run it as admin
    (keep SudoVDA + Virtual Gamepad components). Fallback: official installer from ClassicOldSong/Apollo releases.
 3. Open https://localhost:47990, create web UI login. Get Tailscale IP: `tailscale ip -4`.
