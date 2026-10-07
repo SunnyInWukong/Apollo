@@ -71,12 +71,14 @@ jobs:
         run: |
           mkdir -p artifacts
           cd build
-          cpack -G NSIS
           cpack -G ZIP
-          mv cpack_artifacts/*.exe ../artifacts/Apollo-Windows-AMD64-installer.exe
           mv cpack_artifacts/*.zip ../artifacts/Apollo-Windows-AMD64-portable.zip
+          cpack -G NSIS || { tail -n 80 cpack_artifacts/_CPack_Packages/win64/NSIS/NSISOutput.log; exit 1; }
+          mv cpack_artifacts/*.exe ../artifacts/Apollo-Windows-AMD64-installer.exe
 
-      - uses: actions/upload-artifact@v4
+      # always(): the portable zip still ships if the NSIS installer step fails
+      - if: always()
+        uses: actions/upload-artifact@v4
         with:
           name: Apollo-Windows-AMD64
           path: artifacts/
