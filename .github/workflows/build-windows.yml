@@ -8,7 +8,6 @@ permissions:
 on:
   push:
     branches: [master]
-    tags: ['v*']
   pull_request:
   workflow_dispatch:
 
@@ -40,7 +39,6 @@ jobs:
             mingw-w64-ucrt-x86_64-MinHook
             mingw-w64-ucrt-x86_64-miniupnpc
             mingw-w64-ucrt-x86_64-nlohmann-json
-            mingw-w64-ucrt-x86_64-nsis
             mingw-w64-ucrt-x86_64-onevpl
             mingw-w64-ucrt-x86_64-openssl
             mingw-w64-ucrt-x86_64-opus
@@ -73,7 +71,11 @@ jobs:
           cd build
           cpack -G ZIP
           mv cpack_artifacts/*.zip ../artifacts/Apollo-Windows-AMD64-portable.zip
-          cpack -G NSIS || { tail -n 80 cpack_artifacts/_CPack_Packages/win64/NSIS/NSISOutput.log; exit 1; }
+          # MSYS2's nsis package has no plugin dir (InstallOptions missing); use the runner's Windows NSIS
+          makensis="/c/Program Files (x86)/NSIS/makensis.exe"
+          [ -f "$makensis" ] || { /c/ProgramData/chocolatey/bin/choco.exe install nsis -y --no-progress && test -f "$makensis"; }
+          cpack -G NSIS -D CPACK_NSIS_EXECUTABLE="$(cygpath -m "$makensis")" \
+            || { tail -n 80 cpack_artifacts/_CPack_Packages/win64/NSIS/NSISOutput.log; exit 1; }
           mv cpack_artifacts/*.exe ../artifacts/Apollo-Windows-AMD64-installer.exe
 
       # always(): the portable zip still ships if the NSIS installer step fails
@@ -84,8 +86,13 @@ jobs:
           path: artifacts/
           if-no-files-found: error
 
+      # Every master build becomes the newest release: /releases/latest always has the current installer.
       - name: Release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: build-${{ github.run_number }}
+          name: Apollo build ${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          make_latest: true
           files: artifacts/*
